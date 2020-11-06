@@ -1,0 +1,52 @@
+{
+    "name": "SimpleSpectrogram_test",
+    "n_gpu": 1,
+
+    "arch": {
+        "type": "SimpleModel",
+        "args": {}
+    },
+    "data_loader": {
+        "type": "SpectrogramDataLoader",
+        "args":{
+            "csv_file": "/home/mayug/projects/team3-2020/spectrogram_data_processing/datasets/summary_val.csv",
+            "root_dir":"/home/mayug/projects/team3-2020/spectrogram_data_processing/datasets/temp_val/",
+            "batch_size": 128,
+            "shuffle": true,
+            "validation_split": 0.0,
+            "num_workers": 2
+        }
+    },
+    "optimizer": {
+        "type": "Adam",
+        "args":{
+            "lr": 0.001,
+            "weight_decay": 0,
+            "amsgrad": true
+        }
+    },
+    "loss": "mse_loss",
+    "metrics": [
+        "mse",
+        "r2_score"
+    ],
+    "lr_scheduler": {
+        "type": "StepLR",
+        "args": {
+            "step_size": 50,
+            "gamma": 0.1
+        }
+    },
+    "trainer": {
+        "epochs": 100,
+
+        "save_dir": "saved/",
+        "save_period": 10,
+        "verbosity": 2,
+        
+        "monitor": "min val_loss",
+        "early_stop": 10,
+
+        "tensorboard": true
+    }
+}

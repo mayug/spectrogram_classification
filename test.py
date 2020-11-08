@@ -1,5 +1,6 @@
 import argparse
 import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 import data_loader.data_loaders as module_data
 import model.loss as module_loss
@@ -8,18 +9,30 @@ import model.model as module_arch
 from parse_config import ConfigParser
 import pandas as pd
 
+
+
+def convert_output(output, regression=False):
+    if regression:
+        return output
+    output = F.softmax(output, dim=1)
+    return output.argmax(dim=1)
+
+
 def main(config):
     logger = config.get_logger('test')
 
     # setup data_loader instances
-    data_loader = getattr(module_data, config['data_loader']['type'])(
-        config['data_loader']['args']['csv_file'],
-        config['data_loader']['args']['root_dir'],
-        batch_size=128,
-        shuffle=False,
-        num_workers=4,
-        return_id=True
-    )
+    # data_loader = getattr(module_data, config['data_loader']['type'])(
+    #     config['data_loader']['args']['csv_file'],
+    #     config['data_loader']['args']['root_dir'],
+    #     batch_size=128,
+    #     shuffle=False,
+    #     num_workers=4,
+    #     return_id=True
+    # )
+    # print(data_loader)
+    data_loader = config.init_obj('data_loader', module_data)
+    print(data_loader)
 
     # build model architecture
     model = config.init_obj('arch', module_arch)
@@ -44,7 +57,7 @@ def main(config):
     total_loss = 0.0
     total_metrics = torch.zeros(len(metric_fns))
     save_df = pd.DataFrame(columns=['fileid', 'chirp_number',
-                           'predicted_distance', 'target_distance'])
+                           'predicted_class', 'target_class'])
     with torch.no_grad():
         for i, (data, target, fileid, chirp) in enumerate(tqdm(data_loader)):
             data, target = data.to(device), target.to(device)
@@ -52,11 +65,11 @@ def main(config):
             #
             # save sample images, or do something with output here
             #
-
+            output_save = convert_output(output, config['arch']['args']['regression'])
             current_df = pd.DataFrame({'fileid': fileid, 
                                         'chirp_number': chirp,
-                                        'predicted_distance': output.cpu().numpy(),
-                                        'target_distance': target.cpu().numpy()
+                                        'predicted_class': output_save.cpu().numpy(),
+                                        'target_class': target.cpu().numpy()
                                         })
 
             save_df = pd.concat([save_df, current_df], ignore_index=True)                          
@@ -67,7 +80,8 @@ def main(config):
             total_loss += loss.item() * batch_size
             for i, metric in enumerate(metric_fns):
                 total_metrics[i] += metric(output, target) * batch_size
-
+            # print('sanity check ', save_df)
+            # break
     n_samples = len(data_loader.sampler)
     save_df.to_csv('./saved/log/tests/{}.csv'.format(config['name']))
     log = {'loss': total_loss / n_samples}
@@ -89,3 +103,4 @@ if __name__ == '__main__':
     config = ConfigParser.from_args(args)
     # print(config['data_loader'])
     main(config)
+

@@ -42,16 +42,28 @@ class RecurrenceDataLoader(BaseDataLoader):
     """
     MNIST data loading demo using BaseDataLoader
     """
-    def __init__(self, csv_file, root_dir, batch_size, shuffle=True,
-                 validation_split=0.0, num_workers=1, return_id=False):
+    def __init__(self, csv_file, root_dir, batch_size,
+                shuffle=True,
+                validation_split=0.0, 
+                num_workers=1, 
+                return_id=False,
+                filter_type='rec_exists',
+                target_type='rx_pose_carry'):
         trsfm = transforms.Compose([
             transforms.ToTensor()
         ])
+        print('Inside dataloader')
+        print(filter_type)
+        print(target_type)
         self.data_dir = root_dir
         self.dataset = RecurrenceDataset(csv_file, self.data_dir,
                                           transform=trsfm, 
-                                          return_id=return_id)
-        super().__init__(self.dataset, batch_size, shuffle, validation_split, num_workers)
+                                          return_id=return_id,
+                                          filter_type=filter_type,
+                                          target_type=target_type)
+        super().__init__(self.dataset, batch_size,
+                        shuffle, validation_split, 
+                        num_workers)
 
 
 
@@ -132,6 +144,8 @@ class RecurrenceDataset(SpectrogramDataset):
     """Face Landmarks dataset."""
 
     def __init__(self, csv_file, root_dir, transform=None,
+                 filter_type='rec_multi_exists',
+                 target_type='rx_pose_carry',
                  return_id=False,
                  data_limit=None):
         """
@@ -141,17 +155,30 @@ class RecurrenceDataset(SpectrogramDataset):
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
+        print('types')
+        print(filter_type)
+        print(target_type)
         self.table = pd.read_csv(csv_file)
-        self.table = self.table[self.table['rec_exists']==True]
+        self.table = self.table[self.table[filter_type]==True]
         self.root_dir = root_dir
         self.transform = transform
         self.return_id = return_id
-        self.pose_carry_dict = {'standing_pocket': 0,
-                                'standing_hand': 1,
-                                'sitting_pocket': 2,
-                                'sitting_hand': 3}
+        self.filter_type = filter_type
+        self.target_type = target_type
+
         if data_limit:
             self.table = self.table.sample(data_limit)
+
+    def get_target(self, row):
+        pose_carry_dict = {'standing_pocket': 0,
+                           'standing_hand': 1,
+                           'sitting_pocket': 2,
+                           'sitting_hand': 3}
+        # print('sanityc hceck ', self.target_type)
+        if self.target_type == 'distance_error':
+            error = row['physical_distance'].astype(np.float32) - row['distance_in_meters'].astype(np.float32)
+            return error
+        return pose_carry_dict[row[self.target_type]]
     def __len__(self):
         return len(self.table)
 
@@ -163,7 +190,7 @@ class RecurrenceDataset(SpectrogramDataset):
         file_name = '{}_{}.npy'.format(row['fileid'], int(row['chirp_number']))
         file_name = os.path.join(self.root_dir, file_name)
         image = (np.load(file_name).astype(np.float32)) / 10.0
-        target = self.pose_carry_dict[row['rx_pose_carry']]
+        target = self.get_target(row)
         # sample = {'image': image, 'distance': distance}
         sample = [image,  target]
 
@@ -178,3 +205,10 @@ class RecurrenceDataset(SpectrogramDataset):
         # print(image.shape)
         # print(target)
         return sample
+
+
+# class ErrorDataset(RecurrenceDataset):
+#     def get_target(self, row):
+#         if self.target_type == 'distance_error':
+#             error = row['physical_distance'].astype(np.float32) - row['distance_in_meters'].astype(np.float32)
+#         return error

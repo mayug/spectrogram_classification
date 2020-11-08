@@ -54,16 +54,24 @@ class SimpleRegressionModel(BaseModel):
         return x.squeeze()
 
 class resnet18(BaseModel):
-    def __init__(self, num_classes=1, num_channels=1):
+    def __init__(self, 
+                num_classes=1,
+                num_channels=1,
+                regression=False):
         super().__init__()
+        self.regression = regression
         self.model = models.resnet18(pretrained=False, 
-                                     num_classes=num_classes)
+                                    num_classes=num_classes)
         self.model.conv1 = nn.Conv2d(num_channels, 64, 
                                 kernel_size=7, stride=2,
                                 padding=3,
                                 bias=False)
         # initialize the biases of the final layer for the rx_pose_carry task
-        self.model.fc.bias.data = torch.Tensor( [-1.0, -0.61, -2.48, -3.28])
+        if not self.regression:
+            self.model.fc.bias.data = torch.Tensor( [-1.0, -0.61, -2.48, -3.28])
     def forward(self, x):
         x = self.model(x)
-        return F.log_softmax(x, dim=1)
+        if self.regression:
+            return x.squeeze()
+        else:
+            return F.log_softmax(x, dim=1)

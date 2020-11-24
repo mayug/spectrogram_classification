@@ -69,6 +69,7 @@ class ConfigParser:
             cfg_fname = Path(args.config)
         
         config = read_json(cfg_fname)
+        # print('inside from args ', args.config)
         if args.config and resume:
             # update new config for fine-tuning
             print('updating config with {}'.format(args.config))

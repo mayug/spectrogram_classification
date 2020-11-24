@@ -3,7 +3,7 @@
     "n_gpu": 1,
 
     "arch": {
-        "type": "resnet18",
+        "type": "SimpleClassificationModel",
         "args": {"num_classes": 4,
                  "num_channels": 1}
     },
@@ -14,10 +14,27 @@
             "root_dir":"/home/mayug/projects/team3-2020/spectrogram_data_processing/datasets/rec_train/",
             "batch_size": 16,
             "shuffle": true,
-            "validation_split": 0.1,
-            "num_workers": 4
+            "validation_split": 0.0,
+            "num_workers": 4,
+            "data_limit": null,
+            "filter_type": "rec_exists",
+            "target_type": "rx_pose_carry"
             
         }
+    },
+        "valid_data_loader": {
+            "type": "RecurrenceDataLoader",
+            "args":{
+                "csv_file": "/home/mayug/projects/team3-2020/spectrogram_data_processing/datasets/summary_val_rx_unknown.csv",
+                "root_dir":"/home/mayug/projects/team3-2020/spectrogram_data_processing/datasets/rec_val/",
+                "batch_size": 16,
+                "shuffle": true,
+                "validation_split": 0.0,
+                "num_workers": 4,
+                "filter_type": "rec_exists",
+                "target_type": "rx_pose_carry"
+                
+            }
     },
     "optimizer": {
         "type": "Adam",

@@ -33,8 +33,9 @@ class BaseDataLoader(DataLoader):
         idx_full = np.arange(self.n_samples)
 
         # hiding to prevent leakage from train set to val set via chirps of same file
-        # np.random.seed(0)
-        # np.random.shuffle(idx_full)
+        if self.shuffle:
+            np.random.seed(0)
+            np.random.shuffle(idx_full)
 
         if isinstance(split, int):
             assert split > 0

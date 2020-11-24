@@ -76,6 +76,7 @@ class BaseTrainer:
             # evaluate model performance according to configured metric, save best checkpoint as model_best
             best = False
             if self.mnt_mode != 'off':
+                print([self.mnt_mode, self.mnt_metric, self.mnt_best])
                 try:
                     # check whether model performance improved or not, according to specified metric(mnt_metric)
                     improved = (self.mnt_mode == 'min' and log[self.mnt_metric] <= self.mnt_best) or \
@@ -99,6 +100,7 @@ class BaseTrainer:
                     break
 
             if epoch % self.save_period == 0:
+                print('best', best)
                 self._save_checkpoint(epoch, save_best=best)
 
     def _prepare_device(self, n_gpu_use):
@@ -135,15 +137,19 @@ class BaseTrainer:
             'monitor_best': self.mnt_best,
             'config': self.config
         }
-        filename = str(self.checkpoint_dir / 'checkpoint-epoch{}.pth'.format(epoch))
-        torch.save(state, filename)
-        self.logger.info("Saving checkpoint: {} ...".format(filename))
+        # not saving every epoch 
+
+        # filename = str(self.checkpoint_dir / 'checkpoint-epoch{}.pth'.format(epoch))
+        # torch.save(state, filename)
+        # self.logger.info("Saving checkpoint: {} ...".format(filename))
         if save_best:
             best_path = str(self.checkpoint_dir / 'model_best.pth')
             torch.save(state, best_path)
+            best_path = str(self.checkpoint_dir / 'model_best_1.pth')
+            torch.save(state, best_path)
             self.logger.info("Saving current best: model_best.pth ...")
 
-    def _resume_checkpoint(self, resume_path):
+    def _resume_checkpoint(self, resume_path, reset_best=True):
         """
         Resume from saved checkpoints
 
@@ -153,7 +159,8 @@ class BaseTrainer:
         self.logger.info("Loading checkpoint: {} ...".format(resume_path))
         checkpoint = torch.load(resume_path)
         self.start_epoch = checkpoint['epoch'] + 1
-        self.mnt_best = checkpoint['monitor_best']
+        if reset_best == False:
+            self.mnt_best = checkpoint['monitor_best']
 
         # load architecture params from checkpoint.
         if checkpoint['config']['arch'] != self.config['arch']:
@@ -162,7 +169,8 @@ class BaseTrainer:
         self.model.load_state_dict(checkpoint['state_dict'])
 
         # load optimizer state from checkpoint only when optimizer type is not changed.
-        if checkpoint['config']['optimizer']['type'] != self.config['optimizer']['type']:
+        # also if trainable is not None
+        if self.config['arch']['trainable_children'] != None or checkpoint['config']['optimizer']['type'] != self.config['optimizer']['type']:
             self.logger.warning("Warning: Optimizer type given in config file is different from that of checkpoint. "
                                 "Optimizer parameters not being resumed.")
         else:

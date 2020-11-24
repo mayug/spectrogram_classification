@@ -83,7 +83,7 @@ def main(config):
             # print('sanity check ', save_df)
             # break
     n_samples = len(data_loader.sampler)
-    save_df.to_csv('./saved/log/tests/{}.csv'.format(config['name']))
+    save_df.to_csv('./saved/log/tests/{}_1.csv'.format(config['name']))
     log = {'loss': total_loss / n_samples}
     log.update({
         met.__name__: total_metrics[i].item() / n_samples for i, met in enumerate(metric_fns)

@@ -6,9 +6,11 @@ import data_loader.data_loaders as module_data
 import model.loss as module_loss
 import model.metric as module_metric
 import model.model as module_arch
+from model.model_utils import freeze_layers
 from parse_config import ConfigParser
 from trainer import Trainer
-
+import warnings
+# warnings.filterwarnings("ignore")
 
 # fix random seeds for reproducibility
 SEED = 123
@@ -22,11 +24,25 @@ def main(config):
 
     # setup data_loader instances
     data_loader = config.init_obj('data_loader', module_data)
-    valid_data_loader = data_loader.split_validation()
+    # add valid_data_loader on dev set; Not split
+    if config['data_loader']['args']['validation_split']!=0:
+        print('Using validation split {}'.format(config['data_loader']['args']['validation_split']))
+        valid_data_loader = data_loader.split_validation()
+    else:
+        print('Using custom validation data loader')
+        valid_data_loader = config.init_obj('valid_data_loader',
+                                    module_data)
 
     # build model architecture, then print to console
     model = config.init_obj('arch', module_arch)
+    # # Hide this if required
+    # model = model.float()
+
     logger.info(model)
+    if config['arch']['trainable_children'] is not None:
+        trainable_children = [int(i) for i in config['arch']['trainable_children'].split(',')]
+        print(trainable_children)
+        model = freeze_layers(model, trainable_children=trainable_children)
 
     # get function handles of loss and metrics
     criterion = getattr(module_loss, config['loss'])

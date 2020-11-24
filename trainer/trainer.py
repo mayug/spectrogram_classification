@@ -3,6 +3,8 @@ import torch
 from torchvision.utils import make_grid
 from base import BaseTrainer
 from utils import inf_loop, MetricTracker
+from data_loader.mixup import mixup_criterion, mixup_data
+from torch.autograd import Variable
 
 
 class Trainer(BaseTrainer):
@@ -10,7 +12,7 @@ class Trainer(BaseTrainer):
     Trainer class
     """
     def __init__(self, model, criterion, metric_ftns, optimizer, config, data_loader,
-                 valid_data_loader=None, lr_scheduler=None, len_epoch=None):
+                 valid_data_loader=None, lr_scheduler=None, len_epoch=None, mixup=False, alpha=1.0):
         super().__init__(model, criterion, metric_ftns, optimizer, config)
         self.config = config
         self.data_loader = data_loader
@@ -26,6 +28,11 @@ class Trainer(BaseTrainer):
         self.lr_scheduler = lr_scheduler
         self.log_step = int(np.sqrt(data_loader.batch_size))
 
+        self.mixup = self.config['other_args']['mixup']
+        self.alpha = self.config['other_args']['alpha']
+        print("Training using mixup = {} with alpha = {}".format(self.mixup, self.alpha))
+
+        print('metrics functions are ', metric_ftns)
         self.train_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer=self.writer)
         self.valid_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer=self.writer)
 
@@ -39,11 +46,27 @@ class Trainer(BaseTrainer):
         self.model.train()
         self.train_metrics.reset()
         for batch_idx, (data, target) in enumerate(self.data_loader):
+            # error debugging
+            # if batch_idx < 6872:
+            #     print(batch_idx)
+            #     continue
             data, target = data.to(self.device), target.to(self.device)
-            # print('sanity check', [data.min(), data.max(), data.shape])
+
+            # mixup
+            if self.mixup:
+                data, target_a, target_b, lam = mixup_data(data, target,
+                                                        self.alpha, use_cuda=True)
+                data, target_a, target_b = map(Variable,
+                                            (data, target_a, target_b))
+
+
+            # print('sanity check', [data.min(), data.max(), data.shape, type(data[0,0,0])])
             self.optimizer.zero_grad()
             output = self.model(data)
-            loss = self.criterion(output, target)
+            if self.mixup:
+                loss = mixup_criterion(self.criterion, output, target_a, target_b, lam)
+            else:
+                loss = self.criterion(output, target)
             loss.backward()
             self.optimizer.step()
 
@@ -57,12 +80,14 @@ class Trainer(BaseTrainer):
                     epoch,
                     self._progress(batch_idx),
                     loss.item()))
-                try:
-                    self.writer.add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
-                except TypeError:
-                    self.writer.add_image('input', make_grid((data.cpu()[:,0,:,:]).unsqueeze(1), nrow=8, normalize=True))
+                # try:
+                #     self.writer.add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
+                # except TypeError:
+                #     self.writer.add_image('input', make_grid((data.cpu()[:,0,:,:]).unsqueeze(1), nrow=8, normalize=True))
             if batch_idx == self.len_epoch:
                 break
+
+
         # sanity check 
         # print(target)
 
@@ -96,13 +121,17 @@ class Trainer(BaseTrainer):
                 self.valid_metrics.update('loss', loss.item())
                 for met in self.metric_ftns:
                     self.valid_metrics.update(met.__name__, met(output, target))
-                try:
-                    self.writer.add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
-                except TypeError:
-                    self.writer.add_image('input', make_grid(data.cpu()[:,0,:,:].unsqueeze(1), nrow=8, normalize=True))
+                # try:
+                #     self.writer.add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
+                # except TypeError:
+                #     self.writer.add_image('input', make_grid(data.cpu()[:,0,:,:].unsqueeze(1), nrow=8, normalize=True))
         # add histogram of model parameters to the tensorboard
-        for name, p in self.model.named_parameters():
-            self.writer.add_histogram(name, p, bins='auto')
+        # Here everything is being added. Hence large size of tf files
+
+        # for name, p in self.model.named_parameters():
+        #     self.writer.add_histogram(name, p, bins='auto')
+
+
         return self.valid_metrics.result()
 
     def _progress(self, batch_idx):
